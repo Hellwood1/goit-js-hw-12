@@ -6,20 +6,7 @@ import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
 
 const BASE_URL = 'https://pixabay.com/api/?';
-
 const API_KEY = '41881692-6f4b64110761e7ecb64cd986a';
-
-const form = document.querySelector('.form');
-const myGallery = document.querySelector('.gallery');
-const loader = document.querySelector('.loader');
-
-const searchParamsDefault = {
-  key: API_KEY,
-  q: 'query',
-  image_type: 'photo',
-  orientation: 'horizontal',
-  safesearch: true,
-};
 
 const lightbox = new SimpleLightbox('.gallery a', {
   captionsData: 'alt',
@@ -29,74 +16,76 @@ const lightbox = new SimpleLightbox('.gallery a', {
   docClose: true,
 });
 
-const showLoader = state => {
-  loader.style.display = state ? 'block' : 'none';
-};
-
-const handleFormSubmit = event => {
+const handleFormSubmit = async (event) => {
   event.preventDefault();
+
+  const form = document.querySelector('.form');
+  const myGallery = document.querySelector('.gallery');
+  const loader = document.querySelector('.loader');
+
+  const searchParamsDefault = {
+    key: API_KEY,
+    q: 'query',
+    image_type: 'photo',
+    orientation: 'horizontal',
+    safesearch: true,
+  };
+
   const searchQuery = event.target.elements.search.value.trim();
   if (!searchQuery) {
-    console.error('Please enter a valid search query.');
+    showNoImagesMessage('Please enter a valid search query!');
     return;
   }
-  
-clearPreviousResults();
-    
+
+  const searchParams = { ...searchParamsDefault, q: encodeURIComponent(searchQuery) };
+
+  clearPreviousResults();
   showLoader(true);
-  searchParamsDefault.q = encodeURIComponent(searchQuery);
-  
-  const searchParams = new URLSearchParams(searchParamsDefault);
-  const url = `${BASE_URL}${searchParams}`;  
-  getImages(url);
-  event.currentTarget.reset();
+
+  const url = `${BASE_URL}${new URLSearchParams(searchParams)}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Something went wrong. Please try again later.`);
+    }
+
+    const { hits } = await response.json();
+
+    if (hits.length === 0) {
+      showNoImagesMessage('Sorry, there are no images matching your search query. Please try again!');
+    } else {
+      renderImages(hits);
+      lightbox.refresh();
+    }
+  } catch (error) {
+    console.error(error.message);
+  } finally {
+    showLoader(false);
+    form.reset();
+  }
 };
 
-const getImages = url => {
-  showLoader(true);
-  
-  fetch(url)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`Something went wrong. Please try again later.`);
-      }
-      return response.json();
-    })
-    .then(({ hits }) => {
-      if (hits.length === 0) {
-        showNoImagesMessage();
-      } else {
-        renderImages(hits);
-        lightbox.refresh();
-      }
-    })
-    .catch(error => {
-      console.error(error.message);
-    })
-    .finally(() => {
-      showLoader(false);
-    });
-
-    
+const showNoImagesMessage = (message) => {
+  iziToast.error({
+    message: message,
+    backgroundColor: '#EF4040',
+    messageColor: '#FFFFFF',
+    maxWidth: 300,
+    timeout: 2000,
+    progressBar: false,
+    position: 'topRight',
+    transitionIn: 'bounceInRight',
+    transitionOut: 'fadeOutLeft',
+    messageSize: 12,
+  });
 };
 
-const showNoImagesMessage = () => {
-    iziToast.error({
-     message: `Sorry, there are no images matching your search query. Please try again!`,
-      backgroundColor: '#EF4040',
-      messageColor: '#FFFFFF',
-      maxWidth: 300,
-      timeout: 2000,
-      progressBar: false,
-      position: 'topRight',
-      transitionIn: 'bounceInRight',
-      transitionOut: 'fadeOutLeft',
-      messageSize: 12,
-    });
-};
+const renderImages = (hits) => {
+  const myGallery = document.querySelector('.gallery');
 
-const renderImages = hits => {
-  myGallery.innerHTML = hits.map(image =>   `
+  myGallery.innerHTML = hits.map((image) => `
     <li class='gallery-item'>
         <a href="${image.largeImageURL}">
         <img src="${image.webformatURL}" alt="${image.tags}" />
@@ -123,7 +112,14 @@ const renderImages = hits => {
 };
 
 const clearPreviousResults = () => {
+  const myGallery = document.querySelector('.gallery');
   myGallery.innerHTML = '';
 };
 
+const showLoader = (state) => {
+  const loader = document.querySelector('.loader');
+  loader.style.display = state ? 'block' : 'none';
+};
+
+const form = document.querySelector('.form');
 form.addEventListener('submit', handleFormSubmit);
