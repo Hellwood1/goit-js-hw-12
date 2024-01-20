@@ -160,6 +160,8 @@ const handleLoadMore = async () => {
   handleApiResponse(searchParams);
 };
 
+loadMoreButton.style.display = 'none';
+
 loadMoreButton.addEventListener('click', async () => {
   toggleLoader(true);
   page += 1;
