@@ -148,7 +148,6 @@ const handleFormSubmit = async (event) => {
     return;
   }
 
-
   page = 1;
   clearGallery();
 
