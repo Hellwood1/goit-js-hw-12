@@ -18,18 +18,31 @@
   border: 1px solid #808080;
 }
 
-.serch-btn {
+.search-btn,
+.load-more {
   color: #fff;
   font-family: Montserrat;
   letter-spacing: 0.04em;
 
   padding: 8px 16px;
-  border-color: #4e75ff;
+  border-color: inherit;
   border-radius: 8px;
   background: #4e75ff;
 }
 
-.serch-btn:hover,
-.serch-btn:focus {
-  border: 1px solid #000;
+.search-btn:hover,
+.search-btn:focus,
+.load-more:hover,
+.load-more:focus {
+  background-color: #819bfb;
+}
+
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.load-more {
+  display: none;
 }

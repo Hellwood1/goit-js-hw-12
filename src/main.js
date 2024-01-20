@@ -1,5 +1,6 @@
 "use strict";
 
+import axios from 'axios';
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
 import SimpleLightbox from 'simplelightbox';
@@ -16,61 +17,29 @@ const lightbox = new SimpleLightbox('.gallery a', {
   docClose: true,
 });
 
-const handleFormSubmit = async (event) => {
-  event.preventDefault();
+let page = 1;
+let searchQuery = '';
+let totalHits = 0;
 
-  const form = document.querySelector('.form');
-  const myGallery = document.querySelector('.gallery');
-  const loader = document.querySelector('.loader');
+const form = document.querySelector('.form');
+const myGallery = document.querySelector('.gallery');
+const loader = document.querySelector('.loader');
+const loadMoreButton = document.querySelector('.load-more');
 
-  const searchParamsDefault = {
-    key: API_KEY,
-    q: 'query',
-    image_type: 'photo',
-    orientation: 'horizontal',
-    safesearch: true,
-  };
-
-  const searchQuery = event.target.elements.search.value.trim();
-  if (!searchQuery) {
-    showNoImagesMessage('Please enter a valid search query!');
-    return;
-  }
-
-  const searchParams = { ...searchParamsDefault, q: encodeURIComponent(searchQuery) };
-
-  clearPreviousResults();
-  showLoader(true);
-
-  const url = `${BASE_URL}${new URLSearchParams(searchParams)}`;
-
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`Something went wrong. Please try again later.`);
-    }
-
-    const { hits } = await response.json();
-
-    if (hits.length === 0) {
-      showNoImagesMessage('Sorry, there are no images matching your search query. Please try again!');
-    } else {
-      renderImages(hits);
-      lightbox.refresh();
-    }
-  } catch (error) {
-    console.error(error.message);
-  } finally {
-    showLoader(false);
-    form.reset();
-  }
+const searchParams = {
+  key: API_KEY,
+  q: '',
+  image_type: 'photo',
+  orientation: 'horizontal',
+  safesearch: true,
+  page: 1,
+  per_page: 40,
 };
 
-const showNoImagesMessage = (message) => {
-  iziToast.error({
+const showMessage = (message, backgroundColor, messageSize) => {
+  iziToast.show({
     message: message,
-    backgroundColor: '#EF4040',
+    backgroundColor: backgroundColor,
     messageColor: '#FFFFFF',
     maxWidth: 300,
     timeout: 2000,
@@ -78,48 +47,125 @@ const showNoImagesMessage = (message) => {
     position: 'topRight',
     transitionIn: 'bounceInRight',
     transitionOut: 'fadeOutLeft',
-    messageSize: 12,
+    messageSize: messageSize,
   });
 };
 
-const renderImages = (hits) => {
-  const myGallery = document.querySelector('.gallery');
-
-  myGallery.innerHTML = hits.map((image) => `
-    <li class='gallery-item'>
-        <a href="${image.largeImageURL}">
-        <img src="${image.webformatURL}" alt="${image.tags}" />
-        </a>
-        <div class='info-container'>
-          <div>
-            <h3 class='card-title'>Likes</h3>
-            <p class='card-info'>${image.likes}</p>
-          </div>
-          <div>
-            <h3 class='card-title'>Views</h3>
-            <p class='card-info'>${image.views}</p>
-          </div>
-          <div>
-            <h3 class='card-title'>Comments</h3>
-            <p class='card-info'>${image.comments}</p>
-          </div>
-          <div>
-            <h3 class='card-title'>Downloads</h3>
-            <p class='card-info'>${image.downloads}</p>
-          </div>
-        </div>
-      </li>`).join('');
-};
-
-const clearPreviousResults = () => {
-  const myGallery = document.querySelector('.gallery');
+const clearGallery = () => {
   myGallery.innerHTML = '';
 };
 
-const showLoader = (state) => {
-  const loader = document.querySelector('.loader');
+const toggleLoader = (state) => {
   loader.style.display = state ? 'block' : 'none';
 };
 
-const form = document.querySelector('.form');
+const scrollPageByGalleryCardHeight = () => {
+  const firstGalleryCard = myGallery.querySelector('.gallery-item');
+
+  if (firstGalleryCard) {
+    const cardHeight = firstGalleryCard.getBoundingClientRect().height;
+    window.scrollBy({
+      top: cardHeight * 2,
+      behavior: 'smooth',
+    });
+  }
+};
+
+const renderImage = (image) => `
+  <li class='gallery-item'>
+    <a href="${image.largeImageURL}">
+      <img src="${image.webformatURL}" alt="${image.tags}" />
+    </a>
+    <div class='info-container'>
+      <div>
+        <h3 class='card-title'>Likes</h3>
+        <p class='card-info'>${image.likes}</p>
+      </div>
+      <div>
+        <h3 class='card-title'>Views</h3>
+        <p class='card-info'>${image.views}</p>
+      </div>
+      <div>
+        <h3 class='card-title'>Comments</h3>
+        <p class='card-info'>${image.comments}</p>
+      </div>
+      <div>
+        <h3 class='card-title'>Downloads</h3>
+        <p class='card-info'>${image.downloads}</p>
+      </div>
+    </div>
+  </li>`;
+
+const fetchData = async (searchParams) => {
+  try {
+    const response = await axios.get(`${BASE_URL}${new URLSearchParams(searchParams)}`);
+
+    if (response.status !== 200) {
+      throw new Error(`Something went wrong. Please try again later.`);
+    }
+
+    const { hits, totalHits: newTotalHits } = response.data;
+
+    return { hits, newTotalHits };
+  } catch (error) {
+    console.error(error.message);
+    return { hits: [], newTotalHits: 0 };
+  }
+};
+
+const handleApiResponse = async (searchParams) => {
+  toggleLoader(true);
+  const { hits, newTotalHits } = await fetchData(searchParams);
+  toggleLoader(false);
+
+  if (hits.length === 0) {
+    showMessage('Sorry, there are no images matching your search query. Please try again!', '#EF4040', 12);
+  } else {
+    hits.forEach((image) => {
+      myGallery.innerHTML += renderImage(image);
+    });
+
+    lightbox.refresh();
+    totalHits = newTotalHits;
+
+    if (myGallery.children.length >= totalHits) {
+      loadMoreButton.style.display = 'none';
+      showMessage("We're sorry, but you've reached the end of search results.", '#4e75ff', 14);
+    } else {
+      loadMoreButton.style.display = 'block';
+      scrollPageByGalleryCardHeight();
+    }
+  }
+};
+
+const handleFormSubmit = async (event) => {
+  event.preventDefault();
+
+  searchQuery = event.target.elements.search.value.trim();
+
+  if (!searchQuery) {
+    showMessage('Please enter a valid search query!', '#EF4040', 12);
+    return;
+  }
+
+
+  page = 1;
+  clearGallery();
+
+  searchParams.q = searchQuery;
+  handleApiResponse(searchParams);
+};
+
+const handleLoadMore = async () => {
+  searchParams.page = page;
+  handleApiResponse(searchParams);
+};
+
+loadMoreButton.addEventListener('click', async () => {
+  toggleLoader(true);
+  page += 1;
+  await handleLoadMore();
+  toggleLoader(false);
+});
+
 form.addEventListener('submit', handleFormSubmit);
